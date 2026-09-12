@@ -18,6 +18,7 @@ test-results/
 
 # Production Archives & Deployment Packages
 *.zip
+!prd-generator-appsail.zip
 *.tar.gz
 *.tgz
 *.rar
