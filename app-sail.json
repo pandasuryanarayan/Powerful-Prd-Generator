@@ -1,0 +1,9 @@
+{
+  "build": "npm install --omit=dev",
+  "run": "npm start",
+  "env_variables": {
+    "NODE_ENV": "production",
+    "PORT": "3000"
+  }
+}
+

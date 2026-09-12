@@ -1,0 +1,14 @@
+{
+  "project": {
+    "name": "ai-prd-generator"
+  },
+  "appsail": [
+    {
+      "name": "prd-generator",
+      "source": ".",
+      "build": "npm install --omit=dev",
+      "run": "npm start"
+    }
+  ]
+}
+
