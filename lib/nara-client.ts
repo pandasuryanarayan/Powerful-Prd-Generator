@@ -1,3 +1,5 @@
+import { generatePRDSections } from '@/lib/prd-generator';
+
 export interface AIInterviewData {
   appName: string;
   oneLinePitch: string;
@@ -22,6 +24,7 @@ export interface AIPRDOutput {
   success: boolean;
   modelUsed: string;
   projectName: string;
+  isFallback?: boolean;
   sections: {
     id: string;
     title: string;
@@ -38,10 +41,8 @@ export const NARA_API_KEY = process.env.NARA_API_KEY || '';
 
 export const NARA_MODELS = [
   'agnes-2.5-flash',
-  'laguna-s-2.1',
-  'ling-3.0-flash-fin-free',
-  'stepfun-3.7-flash',
 ];
+
 
 // Converts nested JSON objects/arrays to human-readable Markdown
 export function jsonToMarkdown(obj: any, depth = 1): string {
@@ -222,19 +223,53 @@ function extractSectionsFromResponse(raw: string): {
   return null;
 }
 
+function buildLocalFallback(data: AIInterviewData, projectName: string): AIPRDOutput {
+  const fallback = generatePRDSections({
+    idea: data.oneLinePitch || data.appName || 'Product Concept',
+    platform: data.platform,
+    customPlatform: data.customPlatform,
+    stack: {
+      frontend: data.frontendPreference,
+      backend: data.backendPreference,
+      database: data.databasePreference,
+    },
+    designStyle: data.designAesthetic,
+    colors: data.primaryColor
+      ? {
+          primary: data.primaryColor,
+          secondary: '#64748b',
+          accent: '#3b82f6',
+          background: '#ffffff',
+          surface: '#f8fafc',
+          text: '#0f172a',
+        }
+      : undefined,
+    keyFeatures: data.keyFeatures,
+    guidingNotes: data.specialRules,
+  });
+
+  return {
+    success: true,
+    modelUsed: 'local-synthesis-engine',
+    projectName: fallback.projectName || projectName,
+    isFallback: true,
+    sections: fallback.sections.map((s) => ({
+      id: s.id,
+      title: s.title,
+      filename: s.filename,
+      content: cleanSectionContent(s.content),
+    })),
+  };
+}
+
 export async function generatePRDWithNara(
   data: AIInterviewData
 ): Promise<AIPRDOutput> {
   const projectName = data.appName || data.oneLinePitch.substring(0, 45) || 'AI Generated Project';
 
   if (!NARA_API_KEY) {
-    return {
-      success: false,
-      modelUsed: 'none',
-      projectName,
-      sections: [],
-      error: 'Nara API key not configured. Please set NARA_API_KEY in your environment variables (.env).',
-    };
+    console.warn('[Nara Router] NARA_API_KEY is not set. Using local synthesis fallback.');
+    return buildLocalFallback(data, projectName);
   }
 
   const platform = data.customPlatform || data.platform || 'Cross-Platform Web & Mobile';
@@ -243,7 +278,7 @@ export async function generatePRDWithNara(
   const database = data.databasePreference || 'PostgreSQL';
 
   const systemPrompt = `You are a Principal Software Architect and Staff Technical Product Manager.
-Generate an elite, top-tier, implementation-ready 4-file Product Requirements Document (PRD) package.
+Generate an elite, developer-ready 4-file Product Requirements Document (PRD) package.
 Your output must be returned STRICTLY as a valid JSON object matching this schema:
 {
   "overview": "Complete Markdown for 01-PRODUCT-OVERVIEW.md",
@@ -252,16 +287,17 @@ Your output must be returned STRICTLY as a valid JSON object matching this schem
   "technical": "Complete Markdown for 04-TECHNICAL-REQUIREMENTS.md"
 }
 
-IMPORTANT INSTRUCTIONS:
-- Each value MUST be human-readable Markdown text directly.
-- Do NOT wrap the markdown values in triple backticks code fences (do NOT use \`\`\`markdown ... \`\`\` inside JSON strings).
-- Ensure all quotes and newlines inside JSON strings are properly formatted.
+CRITICAL RULES:
+- Output MUST be valid JSON containing all 4 keys.
+- Each value MUST be direct Markdown text. Do NOT wrap values in triple backticks code fences (do NOT use \`\`\`markdown ... \`\`\` inside JSON values).
+- Ensure all quotes and newlines inside JSON strings are properly escaped.
+- Be concise, high-density, and technical (~250-400 words per section).
 
-Quality Requirements:
-1. "overview": Executive Summary, Problem Statement with market friction, Target User Personas with Jobs-To-Be-Done, 3 Core Value Pillars, and a 90-Day Success Metrics & Quantitative KPIs Table.
-2. "features": Scope Boundary Matrix (MVP vs Phase 2) with P0/P1/P2 priorities, Detailed User Stories in Gherkin Given-When-Then syntax with concrete acceptance criteria, Edge Cases, Boundary Conditions, and Error Recovery States.
-3. "uiux": Visual Design System for "${data.designAesthetic}" style, Color Tokens table with exact Hex codes (primary: ${data.primaryColor || '#f97316'}, secondary, accent, bg, surface, text), Typography Scale, ASCII Wireframe layout of key screen, and WCAG accessibility guidelines.
-4. "technical": Architecture Blueprint with a Mermaid.js flowchart (graph TD), Production Database Schema (DDL SQL) with foreign keys, constraints, and indexes, Core REST API contracts with JSON request and response payloads, Security & Auth strategy, and Deployment plan.`;
+Section Requirements:
+1. "overview": Executive Summary, Problem Statement, Target User Personas with JTBD, 3 Core Value Pillars, and a 90-Day Success Metrics KPI Table.
+2. "features": Scope Boundary Matrix (MVP vs Phase 2) with P0/P1/P2 priorities, 4-5 Detailed User Stories with Gherkin Acceptance Criteria, Edge Cases & Error States.
+3. "uiux": Visual Design System for "${data.designAesthetic}" style, Color Tokens table with exact Hex codes (primary: ${data.primaryColor || '#f97316'}), Typography scale, ASCII Wireframe layout, WCAG AA compliance.
+4. "technical": Architecture Blueprint with a Mermaid.js flowchart (graph TD), Production Database Schema (DDL SQL) with foreign keys & indexes, Core REST API contracts with JSON payloads, Security & Auth strategy.`;
 
   const coreFlowsStr = Array.isArray(data.coreUserFlows) && data.coreUserFlows.length > 0
     ? data.coreUserFlows.join('; ')
@@ -293,13 +329,14 @@ Special Rules & Constraints: ${data.specialRules || 'None specified'}`;
 
   let lastError: Error | null = null;
 
-  // Try each model sequentially until one succeeds
+  // Try each model sequentially with strict timeout ceiling to stay well under AppSail 25s limit
   for (const model of NARA_MODELS) {
     try {
       console.log(`[Nara Router] Attempting generation with live model: ${model}`);
 
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 60000); // 60s timeout per model
+      // Strict 16s timeout per model ensures response always returns before AppSail's 25-30s gateway timeout
+      const timeoutId = setTimeout(() => controller.abort(), 16000);
 
       const response = await fetch(`${NARA_BASE_URL}/chat/completions`, {
         method: 'POST',
@@ -313,7 +350,8 @@ Special Rules & Constraints: ${data.specialRules || 'None specified'}`;
             { role: 'system', content: systemPrompt },
             { role: 'user', content: userPrompt },
           ],
-          temperature: 0.3,
+          max_tokens: 2200,
+          temperature: 0.2,
         }),
         signal: controller.signal,
       });
@@ -347,6 +385,7 @@ Special Rules & Constraints: ${data.specialRules || 'None specified'}`;
         success: true,
         modelUsed: model,
         projectName,
+        isFallback: false,
         sections: [
           {
             id: 'overview',
@@ -381,11 +420,8 @@ Special Rules & Constraints: ${data.specialRules || 'None specified'}`;
     }
   }
 
-  return {
-    success: false,
-    modelUsed: 'none',
-    projectName,
-    sections: [],
-    error: lastError?.message || 'All Nara Router models were unavailable.',
-  };
+  // Graceful fallback: If Nara models timed out or failed, return local high-fidelity synthesis
+  // immediately so the HTTP response is 200 OK within 17 seconds, preventing 408 & 524 timeouts.
+  console.warn(`[Nara Router] AI model failed or timed out (${lastError?.message || 'timeout'}). Returning high-fidelity local synthesis.`);
+  return buildLocalFallback(data, projectName);
 }

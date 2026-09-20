@@ -96,12 +96,18 @@ export default function GeneratingPage() {
           }
 
           try {
-            // First attempt server API route
+            // First attempt server API route with 22s client abort safeguard
+            const controller = new AbortController();
+            const clientTimeout = setTimeout(() => controller.abort(), 22000);
+
             const res = await fetch('/api/prd/generate-ai', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify(interviewData),
+              signal: controller.signal,
             });
+
+            clearTimeout(clientTimeout);
 
             if (!res.ok) {
               throw new Error(`AI API returned ${res.status}`);
@@ -109,6 +115,9 @@ export default function GeneratingPage() {
             const aiRes = await res.json();
             if (!aiRes.success || !aiRes.sections || aiRes.sections.length === 0) {
               throw new Error('AI API output missing sections');
+            }
+            if (aiRes.isFallback) {
+              showToast('Generated using structured synthesis engine.', 'info');
             }
             data = aiRes;
           } catch (serverErr) {

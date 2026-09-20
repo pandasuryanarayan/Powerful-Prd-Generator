@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { generatePRDWithNara, AIInterviewData } from '@/lib/nara-client';
 
 export const dynamic = 'force-dynamic';
-export const maxDuration = 60;
+export const maxDuration = 25;
 
 export async function POST(request: NextRequest) {
   try {
@@ -16,18 +16,7 @@ export async function POST(request: NextRequest) {
     }
 
     const output = await generatePRDWithNara(data);
-
-    if (!output.success) {
-      return NextResponse.json(
-        {
-          error: output.error || 'Failed to generate PRD with Nara Router models',
-          details: 'All models failed or timed out',
-        },
-        { status: 502 }
-      );
-    }
-
-    return NextResponse.json(output);
+    return NextResponse.json(output, { status: 200 });
   } catch (error: any) {
     console.error('[API generate-ai error]:', error);
     return NextResponse.json(
