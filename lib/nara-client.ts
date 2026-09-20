@@ -263,19 +263,31 @@ Quality Requirements:
 3. "uiux": Visual Design System for "${data.designAesthetic}" style, Color Tokens table with exact Hex codes (primary: ${data.primaryColor || '#f97316'}, secondary, accent, bg, surface, text), Typography Scale, ASCII Wireframe layout of key screen, and WCAG accessibility guidelines.
 4. "technical": Architecture Blueprint with a Mermaid.js flowchart (graph TD), Production Database Schema (DDL SQL) with foreign keys, constraints, and indexes, Core REST API contracts with JSON request and response payloads, Security & Auth strategy, and Deployment plan.`;
 
-  const userPrompt = `Product Idea: ${data.appName}
-Elevator Pitch: ${data.oneLinePitch}
-Target Audience: ${data.targetAudience}
-Primary Persona Needs: ${data.primaryPersonaNeeds}
-Core Workflows: ${data.coreUserFlows.join('; ')}
-Key Features: ${data.keyFeatures.join('; ')}
+  const coreFlowsStr = Array.isArray(data.coreUserFlows) && data.coreUserFlows.length > 0
+    ? data.coreUserFlows.join('; ')
+    : (data.coreUserFlows || 'Standard user onboarding and core workflow');
+
+  const keyFeaturesStr = Array.isArray(data.keyFeatures) && data.keyFeatures.length > 0
+    ? data.keyFeatures.join('; ')
+    : (data.keyFeatures || 'Core product features and user dashboard');
+
+  const integrationsStr = Array.isArray(data.thirdPartyIntegrations) && data.thirdPartyIntegrations.length > 0
+    ? data.thirdPartyIntegrations.join(', ')
+    : (data.thirdPartyIntegrations || 'Standard REST APIs');
+
+  const userPrompt = `Product Idea: ${data.appName || 'Application'}
+Elevator Pitch: ${data.oneLinePitch || ''}
+Target Audience: ${data.targetAudience || 'General Users'}
+Primary Persona Needs: ${data.primaryPersonaNeeds || 'High usability, fast performance'}
+Core Workflows: ${coreFlowsStr}
+Key Features: ${keyFeaturesStr}
 Platform: ${platform}
 Frontend Tech: ${frontend}
 Backend Tech: ${backend}
 Database: ${database}
-Third-Party Integrations: ${data.thirdPartyIntegrations.join(', ')}
+Third-Party Integrations: ${integrationsStr}
 Monetization: ${data.monetizationModel || 'Standard'}
-Design Aesthetic: ${data.designAesthetic}
+Design Aesthetic: ${data.designAesthetic || 'Minimal'}
 Color Mood / Primary: ${data.primaryColor || data.colorMood || '#f97316'}
 Special Rules & Constraints: ${data.specialRules || 'None specified'}`;
 
