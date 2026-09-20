@@ -34,9 +34,7 @@ export interface AIPRDOutput {
 export const NARA_BASE_URL =
   process.env.NARA_BASE_URL || 'https://router.bynara.id/v1';
 
-export const NARA_API_KEY =
-  process.env.NARA_API_KEY ||
-  'sk-nry-hbcSKyCKByHoXOGe4gsm9i9LbeL4FlQPRtDKq8NwxcQ';
+export const NARA_API_KEY = process.env.NARA_API_KEY || '';
 
 export const NARA_MODELS = [
   'agnes-2.5-flash',
@@ -228,6 +226,17 @@ export async function generatePRDWithNara(
   data: AIInterviewData
 ): Promise<AIPRDOutput> {
   const projectName = data.appName || data.oneLinePitch.substring(0, 45) || 'AI Generated Project';
+
+  if (!NARA_API_KEY) {
+    return {
+      success: false,
+      modelUsed: 'none',
+      projectName,
+      sections: [],
+      error: 'Nara API key not configured. Please set NARA_API_KEY in your environment variables (.env).',
+    };
+  }
+
   const platform = data.customPlatform || data.platform || 'Cross-Platform Web & Mobile';
   const frontend = data.frontendPreference || 'Modern Reactive Frontend';
   const backend = data.backendPreference || 'High-Throughput Node.js/Serverless API';

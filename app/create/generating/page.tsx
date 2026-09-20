@@ -112,31 +112,25 @@ export default function GeneratingPage() {
             }
             data = aiRes;
           } catch (serverErr) {
-            console.warn('Server AI route failed, attempting direct Nara Router client failover:', serverErr);
-            const { generatePRDWithNara } = await import('@/lib/nara-client');
-            const clientRes = await generatePRDWithNara(interviewData);
-            if (clientRes.success && clientRes.sections.length > 0) {
-              data = clientRes;
-            } else {
-              console.warn('Nara Router unavailable, using local domain synthesis engine fallback');
-              data = generatePRDSections({
-                platform: project.input.platform,
-                customPlatform: project.input.customPlatform,
-                stack: project.input.stack,
-                designStyle: project.input.designStyle,
-                theme: project.input.theme,
-                colors: project.input.colors,
-                font: project.input.font,
-                category: project.input.category,
-                targetEntities: project.input.targetEntities,
-                keyFeatures: project.input.keyFeatures,
-                userRoles: project.input.userRoles,
-                authModel: project.input.authModel,
-                idea: project.input.idea,
-                guidingNotes: project.input.guidingNotes,
-                regenChanges: project.input.regenChanges,
-              });
-            }
+            console.warn('AI generation route failed, falling back to local synthesis engine:', serverErr);
+            showToast('AI generation unavailable, using local synthesis template.', 'info');
+            data = generatePRDSections({
+              platform: project.input.platform,
+              customPlatform: project.input.customPlatform,
+              stack: project.input.stack,
+              designStyle: project.input.designStyle,
+              theme: project.input.theme,
+              colors: project.input.colors,
+              font: project.input.font,
+              category: project.input.category,
+              targetEntities: project.input.targetEntities,
+              keyFeatures: project.input.keyFeatures,
+              userRoles: project.input.userRoles,
+              authModel: project.input.authModel,
+              idea: project.input.idea,
+              guidingNotes: project.input.guidingNotes,
+              regenChanges: project.input.regenChanges,
+            });
           }
         } else {
           // Standard local/offline pipeline
